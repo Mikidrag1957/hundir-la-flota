@@ -23,9 +23,9 @@ function connect() {
     wsRetries = 0
 
     if (pingInterval) clearInterval(pingInterval)
-    pingInterval = setInterval(() => {
-      if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'ping' }))
-    }, 15000)
+    const sendPing = () => { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'ping' })) }
+    sendPing()
+    pingInterval = setInterval(sendPing, 5000)
   }
 
   ws.onclose = () => {
