@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect, useRef, Suspense } from 'react'
-import { useWebSocket, subscribeToMessages } from '../lib/useWebSocket'
+import { useWebSocket, subscribe } from '../lib/useWebSocket'
 import { SHIPS, TAM } from '../lib/constants'
 import { createEmptyBoard, canPlace, placeShip, randomPlacement } from '../server/gameLogic'
 import type { Board, PlacedShip, ServerMessage, ClientMessage, Phase, Orientation } from '../lib/types'
@@ -158,7 +158,7 @@ function HomePage() {
   )
 
   useEffect(() => {
-    return subscribeToMessages(onServerMessage)
+    return subscribe(onServerMessage)
   }, [onServerMessage])
 
   const handleAttackResult = useCallback(

@@ -1,72 +1,66 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ServerMessage } from './types'
 
 type Listener = (msg: ServerMessage) => void
 
-let globalWs: WebSocket | null = null
-let globalConnected = false
-let globalListeners: Set<Listener> = new Set()
-let globalInitDone = false
+const listeners = new Set<Listener>()
+let ws: WebSocket | null = null
+let wsConnected = false
+let wsRetries = 0
 
-function initGlobalWs() {
-  if (globalInitDone) return
-  globalInitDone = true
+function connect() {
+  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return
 
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   const host = window.location.host
-  const ws = new WebSocket(`${proto}//${host}`)
-  globalWs = ws
+  ws = new WebSocket(`${proto}//${host}`)
 
   ws.onopen = () => {
-    globalConnected = true
+    wsConnected = true
+    wsRetries = 0
   }
+
   ws.onclose = () => {
-    globalConnected = false
+    wsConnected = false
+    ws = null
+    wsRetries++
+    const delay = Math.min(1000 * Math.pow(2, wsRetries), 10000)
+    setTimeout(connect, delay)
   }
+
   ws.onerror = () => {}
+
   ws.onmessage = (ev) => {
     try {
       const msg = JSON.parse(ev.data) as ServerMessage
-      globalListeners.forEach((fn) => fn(msg))
-    } catch {
-      /* ignore */
-    }
+      listeners.forEach((fn) => fn(msg))
+    } catch { /* ignore */ }
   }
 }
 
-interface UseWebSocketReturn {
-  send: (data: unknown) => void
-  connected: boolean
+export function send(data: unknown) {
+  if (ws?.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(data))
+  }
 }
 
-export function useWebSocket(): UseWebSocketReturn {
-  const [, forceUpdate] = useState(0)
+export function subscribe(fn: Listener): () => void {
+  listeners.add(fn)
+  return () => { listeners.delete(fn) }
+}
+
+export function useWebSocket() {
+  const [connected, setConnected] = useState(false)
 
   useEffect(() => {
-    initGlobalWs()
-  }, [])
-
-  useEffect(() => {
-    const listener = () => forceUpdate((n) => n + 1)
-    const interval = setInterval(listener, 500)
+    connect()
+    const interval = setInterval(() => {
+      setConnected(wsConnected)
+    }, 300)
     return () => clearInterval(interval)
   }, [])
 
-  const send = useCallback((data: unknown) => {
-    if (globalWs?.readyState === WebSocket.OPEN) {
-      globalWs.send(JSON.stringify(data))
-    }
-  }, [])
-
-  return { send, connected: globalConnected }
-}
-
-export function subscribeToMessages(fn: Listener): () => void {
-  initGlobalWs()
-  globalListeners.add(fn)
-  return () => {
-    globalListeners.delete(fn)
-  }
+  return { send: useCallback((data: unknown) => send(data), []), connected }
 }
