@@ -1,7 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { WS_PATH } from './constants'
+import { useCallback, useEffect, useState } from 'react'
 import type { ServerMessage } from './types'
 
 type Listener = (msg: ServerMessage) => void
@@ -17,7 +16,7 @@ function initGlobalWs() {
 
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   const host = window.location.host
-  const ws = new WebSocket(`${proto}//${host}${WS_PATH}`)
+  const ws = new WebSocket(`${proto}//${host}`)
   globalWs = ws
 
   ws.onopen = () => {

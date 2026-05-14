@@ -1,8 +1,8 @@
-import { createServer } from 'http'
+import { createServer, IncomingMessage } from 'http'
+import { Socket } from 'net'
 import next from 'next'
 import { WebSocketServer } from 'ws'
 import { setupWebSocket } from './server/roomManager'
-import { WS_PATH } from './lib/constants'
 
 const dev = process.env.NODE_ENV !== 'production'
 const app = next({ dev })
@@ -13,39 +13,32 @@ app.prepare().then(() => {
     handle(req, res)
   })
 
-  const wss = new WebSocketServer({ server, path: WS_PATH })
+  const wss = new WebSocketServer({ noServer: true })
+
+  server.on('upgrade', (request: IncomingMessage, socket: Socket, head: Buffer) => {
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      wss.emit('connection', ws, request)
+    })
+  })
+
   setupWebSocket(wss)
 
   const PORT = parseInt(process.env.PORT || '3000', 10)
 
   server.on('error', (err: NodeJS.ErrnoException) => {
     if (err.code === 'EADDRINUSE') {
-      console.error(`\x1b[31mERROR: El puerto ${PORT} ya está en uso.\x1b[0m`)
-      console.error(`\x1b[33mCierra el otro proceso o usa: PORT=${PORT + 1} npm run dev\x1b[0m`)
+      console.error(`ERROR: El puerto ${PORT} ya está en uso.`)
+      console.error(`Cierra el otro proceso o usa: PORT=${PORT + 1} npm run dev`)
     } else {
-      console.error('\x1b[31mError del servidor:\x1b[0m', err.message)
+      console.error('Error del servidor:', err.message)
     }
   })
 
   server.listen(PORT, () => {
-    const lines = [
-      '╔══════════════════════════════════════╗',
-      '║    HUNDIR LA FLOTA - MULTIJUGADOR    ║',
-      '╠══════════════════════════════════════╣',
-      `║  Servidor: http://localhost:${PORT}`.padEnd(39) + '║',
-      '║                                      ║',
-      '║  Comparte la URL con tus amigos      ║',
-      '╚══════════════════════════════════════╝',
-    ]
-    console.log('\x1b[36m' + lines.join('\n') + '\x1b[0m')
+    console.log(`> Servidor listo en http://localhost:${PORT}`)
+    console.log(`> WebSocket listo en ws://localhost:${PORT}`)
   })
 })
 
-process.on('SIGINT', () => {
-  console.log('\nCerrando servidor...')
-  process.exit()
-})
-process.on('SIGTERM', () => {
-  console.log('\nCerrando servidor...')
-  process.exit()
-})
+process.on('SIGINT', () => { process.exit() })
+process.on('SIGTERM', () => { process.exit() })
