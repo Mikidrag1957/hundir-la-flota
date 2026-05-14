@@ -1,0 +1,23 @@
+{
+  "name": "Hundir la Flota",
+  "short_name": "HundirFlota",
+  "description": "Batalla naval multijugador online. Hunde todos los barcos enemigos antes que tu oponente.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0a1628",
+  "theme_color": "#0a1628",
+  "categories": ["games", "entertainment", "social"],
+  "lang": "es",
+  "dir": "ltr",
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

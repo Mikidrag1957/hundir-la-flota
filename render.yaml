@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: hundir-la-flota
+    runtime: node
+    region: ohio
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
