@@ -291,12 +291,14 @@ export function setupWebSocket(wss: WebSocketServer): void {
       ws.alive = true
     })
 
-    ws.on('message', (data) => {
-      handleMessage(ws, data.toString())
-    })
+        ws.on('message', (data) => {
+            const str = data.toString()
+            console.log('WS RECV:', str)
+            handleMessage(ws, str)
+        })
 
     ws.on('close', () => handleDisconnect(ws))
-    ws.on('error', () => {})
+    ws.on('error', (err) => { console.error('WS ERROR:', err.message) })
 
     ws.send(JSON.stringify({ type: 'connected', id: ws.id } satisfies ServerMessage))
   })

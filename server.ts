@@ -1,5 +1,4 @@
-import { createServer, IncomingMessage } from 'http'
-import { Socket } from 'net'
+import { createServer } from 'http'
 import next from 'next'
 import { WebSocketServer } from 'ws'
 import { setupWebSocket } from './server/roomManager'
@@ -13,14 +12,7 @@ app.prepare().then(() => {
     handle(req, res)
   })
 
-  const wss = new WebSocketServer({ noServer: true })
-
-  server.on('upgrade', (request: IncomingMessage, socket: Socket, head: Buffer) => {
-    wss.handleUpgrade(request, socket, head, (ws) => {
-      wss.emit('connection', ws, request)
-    })
-  })
-
+  const wss = new WebSocketServer({ server })
   setupWebSocket(wss)
 
   const PORT = parseInt(process.env.PORT || '3000', 10)
