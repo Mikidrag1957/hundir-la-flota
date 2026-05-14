@@ -12,8 +12,6 @@ interface GridProps {
   hits: Set<string>
   misses: Set<string>
   sunkShips?: PlacedShip[]
-  interactive?: boolean
-  placementMode?: boolean
   onCellClick?: (r: number, c: number) => void
   onCellHover?: (r: number, c: number | null) => void
   previewCells?: { r: number; c: number; valid: boolean }[]
@@ -45,21 +43,11 @@ function renderShipOverlay(
     const wR = wrapEl.getBoundingClientRect()
     const div = document.createElement('div')
     div.className = reveal ? 'enemy-ship-reveal' : 'ship-art'
-    div.style.cssText = `
-      position: absolute; pointer-events: none; z-index: 2; overflow: visible;
-      left: ${fR.left - wR.left}px;
-      top: ${fR.top - wR.top}px;
-      width: ${ship.orientation === 'h' ? lR.right - fR.left : fR.width}px;
-      height: ${ship.orientation === 'h' ? fR.height : lR.bottom - fR.top}px;
-    `
+    div.style.cssText = `position:absolute;pointer-events:none;z-index:2;overflow:visible;left:${fR.left - wR.left}px;top:${fR.top - wR.top}px;width:${ship.orientation === 'h' ? lR.right - fR.left : fR.width}px;height:${ship.orientation === 'h' ? fR.height : lR.bottom - fR.top}px;`
     const svg = shipSVG(ship.id, ship.size, ship.orientation)
     div.innerHTML = svg
     const svgEl = div.querySelector('svg')
-    if (svgEl) {
-      svgEl.setAttribute('width', '100%')
-      svgEl.setAttribute('height', '100%')
-      svgEl.setAttribute('preserveAspectRatio', 'none')
-    }
+    if (svgEl) { svgEl.setAttribute('width', '100%'); svgEl.setAttribute('height', '100%'); svgEl.setAttribute('preserveAspectRatio', 'none') }
     if (reveal && ship.cells.every((c) => hits.has(`${c.r},${c.c}`))) div.style.opacity = '0.4'
     wrapEl.appendChild(div)
   }
@@ -67,58 +55,51 @@ function renderShipOverlay(
 
 export default function Grid({
   id, board, ships, hits, misses, sunkShips,
-  interactive, placementMode, onCellClick, onCellHover,
-  previewCells = [], showShips, revealedShips,
+  onCellClick, onCellHover, previewCells = [],
+  showShips, revealedShips,
 }: GridProps) {
   const gridRef = useRef<HTMLDivElement>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
-  const touchCellRef = useRef<{ r: number; c: number } | null>(null)
 
-  const getCellClass = useCallback(
-    (r: number, c: number) => {
-      const key = `${r},${c}`
-      const classes = ['cell']
-      const val = board[r]?.[c]
-      if (showShips && val) classes.push('cell-ship')
-      if (hits.has(key)) classes.push('cell-hit')
-      else if (misses.has(key)) classes.push('cell-miss')
-      if (sunkShips?.some((s) => s.cells.some((cc) => cc.r === r && cc.c === c))) classes.push('cell-sunk')
-      const preview = previewCells.find((p) => p.r === r && p.c === c)
-      if (preview) classes.push(preview.valid ? 'cell-pv-ok' : 'cell-pv-bad')
-      return classes.join(' ')
-    },
-    [board, hits, misses, sunkShips, previewCells, showShips],
-  )
+  const getCellClass = useCallback((r: number, c: number) => {
+    const key = `${r},${c}`
+    const val = board[r]?.[c]
+    const classes = ['cell']
+    if (showShips && val) classes.push('cell-ship')
+    if (hits.has(key)) classes.push('cell-hit')
+    else if (misses.has(key)) classes.push('cell-miss')
+    if (sunkShips?.some((s) => s.cells.some((cc) => cc.r === r && cc.c === c))) classes.push('cell-sunk')
+    const preview = previewCells.find((p) => p.r === r && p.c === c)
+    if (preview) classes.push(preview.valid ? 'cell-pv-ok' : 'cell-pv-bad')
+    return classes.join(' ')
+  }, [board, hits, misses, sunkShips, previewCells, showShips])
 
-  const handleTouch = useCallback((e: React.TouchEvent, type: 'start' | 'move' | 'end') => {
-    const touch = e.changedTouches[0]
-    if (!touch) return
-    const el = document.elementFromPoint(touch.clientX, touch.clientY) as HTMLElement | null
-    const cell = el?.closest?.('.cell') as HTMLElement | null
-    if (!cell || !cell.dataset.r || !cell.dataset.c) {
-      if (type === 'end' && placementMode && onCellHover) onCellHover(-1, -1)
-      return
-    }
-    const r = +cell.dataset.r
-    const c = +cell.dataset.c
-
-    if (type === 'start') {
-      touchCellRef.current = { r, c }
-      if (placementMode && onCellHover) onCellHover(r, c)
-      e.preventDefault()
-    } else if (type === 'move') {
-      if (touchCellRef.current && (touchCellRef.current.r !== r || touchCellRef.current.c !== c)) {
-        touchCellRef.current = { r, c }
-        if (placementMode && onCellHover) onCellHover(r, c)
+  const handleTouch = useCallback((e: React.TouchEvent) => {
+    if (e.type === 'touchstart' || e.type === 'touchmove') {
+      const touch = e.touches[0]
+      if (!touch) return
+      const el = document.elementFromPoint(touch.clientX, touch.clientY) as HTMLElement | null
+      const cell = el?.closest?.('.cell') as HTMLElement | null
+      if (!cell || !cell.dataset.r || !cell.dataset.c) {
+        if (e.type === 'touchstart' && onCellHover) onCellHover(-1, -1)
+        return
       }
+      const r = +cell.dataset.r
+      const c = +cell.dataset.c
+      if (e.type === 'touchstart' && onCellHover) onCellHover(r, c)
       e.preventDefault()
-    } else if (type === 'end') {
-      if (interactive && onCellClick) {
-        onCellClick(r, c)
-      }
+    } else if (e.type === 'touchend') {
+      const touch = e.changedTouches[0]
+      if (!touch) return
+      const el = document.elementFromPoint(touch.clientX, touch.clientY) as HTMLElement | null
+      const cell = el?.closest?.('.cell') as HTMLElement | null
+      if (!cell || !cell.dataset.r || !cell.dataset.c) return
+      const r = +cell.dataset.r
+      const c = +cell.dataset.c
+      if (onCellClick) onCellClick(r, c)
       e.preventDefault()
     }
-  }, [interactive, placementMode, onCellClick, onCellHover])
+  }, [onCellClick, onCellHover])
 
   useEffect(() => {
     if (wrapRef.current && gridRef.current) {
@@ -132,6 +113,9 @@ export default function Grid({
       ref={wrapRef}
       className="grid-wrap relative bg-navy-2 rounded-[10px] p-[2px] shadow-[0_4px_16px_rgba(0,0,0,.3)] border border-white/[0.03]"
       style={{ touchAction: 'none' }}
+      onTouchStart={handleTouch}
+      onTouchMove={handleTouch}
+      onTouchEnd={handleTouch}
     >
       <div
         ref={gridRef}
@@ -148,17 +132,9 @@ export default function Grid({
             if (r === 0 && c === 0)
               return <div key="tl" className="flex items-center justify-center text-[0.55rem] font-semibold text-[#7a8a9a]" />
             if (r === 0)
-              return (
-                <div key={`l${c}`} className="flex items-center justify-center text-[0.55rem] font-semibold text-[#7a8a9a]">
-                  {LETTERS[c - 1]}
-                </div>
-              )
+              return <div key={`l${c}`} className="flex items-center justify-center text-[0.55rem] font-semibold text-[#7a8a9a]">{LETTERS[c - 1]}</div>
             if (c === 0)
-              return (
-                <div key={`l${r}`} className="flex items-center justify-center text-[0.55rem] font-semibold text-[#7a8a9a]">
-                  {r}
-                </div>
-              )
+              return <div key={`l${r}`} className="flex items-center justify-center text-[0.55rem] font-semibold text-[#7a8a9a]">{r}</div>
 
             const row = r - 1
             const col = c - 1
@@ -172,31 +148,17 @@ export default function Grid({
                 style={{
                   background: '#1a3a6a',
                   borderRadius: '2px',
-                  cursor: interactive ? 'pointer' : 'default',
                   position: 'relative',
                   transition: 'background 0.1s, transform 0.06s',
                   contain: 'layout style',
                 }}
-                onClick={() => {
-                  if (interactive && onCellClick && !placementMode) onCellClick(row, col)
-                }}
-                onMouseOver={() => {
-                  if (placementMode && onCellHover) onCellHover(row, col)
-                }}
+                onMouseOver={() => { if (onCellHover) onCellHover(row, col) }}
+                onClick={() => { if (onCellClick) onCellClick(row, col) }}
               />
             )
           }),
         )}
       </div>
-      {/* Touch overlay - captures all touch events on the grid */}
-      <div
-        style={{
-          position: 'absolute', inset: 0, zIndex: 3, touchAction: 'none',
-        }}
-        onTouchStart={(e) => handleTouch(e, 'start')}
-        onTouchMove={(e) => handleTouch(e, 'move')}
-        onTouchEnd={(e) => handleTouch(e, 'end')}
-      />
     </div>
   )
 }

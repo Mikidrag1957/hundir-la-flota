@@ -331,8 +331,6 @@ function HomePage() {
                 hits={enemyHits}
                 misses={enemyMisses}
                 showShips={true}
-                interactive={false}
-                placementMode={phase === 'placement'}
                 onCellClick={onPlayerGridClick}
                 onCellHover={onCellHover}
                 previewCells={previewCells}
@@ -407,8 +405,6 @@ function HomePage() {
                 hits={myHits}
                 misses={myMisses}
                 sunkShips={sunkEnemyShips}
-                interactive={true}
-                placementMode={false}
                 onCellClick={onEnemyClick}
                 revealedShips={
                   phase === 'gameover' || phase === 'battle' ? sunkEnemyShips : undefined
