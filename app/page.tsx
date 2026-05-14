@@ -210,7 +210,7 @@ function HomePage() {
   const onCellHover = useCallback(
     (r: number, c: number | null) => {
       if (phaseRef.current !== 'placement') return
-      if (c === null) {
+      if (c === null || c < 0 || r < 0) {
         setPreviewCells([])
         return
       }

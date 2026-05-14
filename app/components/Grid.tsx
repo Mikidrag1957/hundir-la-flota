@@ -2,7 +2,7 @@
 
 import { useCallback, useRef, useEffect } from 'react'
 import { TAM, LETTERS } from '../../lib/constants'
-import type { Board, PlacedShip, Orientation } from '../../lib/types'
+import type { Board, PlacedShip } from '../../lib/types'
 import { shipSVG } from './ShipSvg'
 
 interface GridProps {
@@ -30,25 +30,19 @@ function renderShipOverlay(
 ) {
   if (!gridEl || !wrapEl || !ships) return
   wrapEl.querySelectorAll('.ship-art, .enemy-ship-reveal').forEach((e) => e.remove())
-
   for (const ship of ships) {
     if (!ship.cells?.length) continue
-
     if (reveal) {
       const allHit = ship.cells.every((c) => hits.has(`${c.r},${c.c}`))
       if (!allHit && !ship.cells.some((c) => hits.has(`${c.r},${c.c}`))) continue
     }
-
     const els = ship.cells
       .map((c) => gridEl.querySelector<HTMLElement>(`.cell[data-r="${c.r}"][data-c="${c.c}"]`))
       .filter(Boolean) as HTMLElement[]
-
     if (!els.length) continue
-
     const fR = els[0].getBoundingClientRect()
     const lR = els[els.length - 1].getBoundingClientRect()
     const wR = wrapEl.getBoundingClientRect()
-
     const div = document.createElement('div')
     div.className = reveal ? 'enemy-ship-reveal' : 'ship-art'
     div.style.cssText = `
@@ -58,7 +52,6 @@ function renderShipOverlay(
       width: ${ship.orientation === 'h' ? lR.right - fR.left : fR.width}px;
       height: ${ship.orientation === 'h' ? fR.height : lR.bottom - fR.top}px;
     `
-
     const svg = shipSVG(ship.id, ship.size, ship.orientation)
     div.innerHTML = svg
     const svgEl = div.querySelector('svg')
@@ -67,71 +60,79 @@ function renderShipOverlay(
       svgEl.setAttribute('height', '100%')
       svgEl.setAttribute('preserveAspectRatio', 'none')
     }
-
-    if (reveal && ship.cells.every((c) => hits.has(`${c.r},${c.c}`))) {
-      div.style.opacity = '0.4'
-    }
-
+    if (reveal && ship.cells.every((c) => hits.has(`${c.r},${c.c}`))) div.style.opacity = '0.4'
     wrapEl.appendChild(div)
   }
 }
 
 export default function Grid({
-  id,
-  board,
-  ships,
-  hits,
-  misses,
-  sunkShips,
-  interactive,
-  placementMode,
-  onCellClick,
-  onCellHover,
-  previewCells = [],
-  showShips,
-  revealedShips,
+  id, board, ships, hits, misses, sunkShips,
+  interactive, placementMode, onCellClick, onCellHover,
+  previewCells = [], showShips, revealedShips,
 }: GridProps) {
   const gridRef = useRef<HTMLDivElement>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
+  const touchCellRef = useRef<{ r: number; c: number } | null>(null)
 
   const getCellClass = useCallback(
     (r: number, c: number) => {
       const key = `${r},${c}`
-      const classes: string[] = ['cell']
+      const classes = ['cell']
       const val = board[r]?.[c]
-
       if (showShips && val) classes.push('cell-ship')
-
       if (hits.has(key)) classes.push('cell-hit')
       else if (misses.has(key)) classes.push('cell-miss')
-
-      if (sunkShips?.some((s) => s.cells.some((cc) => cc.r === r && cc.c === c))) {
-        classes.push('cell-sunk')
-      }
-
+      if (sunkShips?.some((s) => s.cells.some((cc) => cc.r === r && cc.c === c))) classes.push('cell-sunk')
       const preview = previewCells.find((p) => p.r === r && p.c === c)
       if (preview) classes.push(preview.valid ? 'cell-pv-ok' : 'cell-pv-bad')
-
-      if (!interactive || placementMode || !onCellClick) classes.push('cursor-default')
-
       return classes.join(' ')
     },
-    [board, hits, misses, sunkShips, previewCells, interactive, placementMode, onCellClick, showShips],
+    [board, hits, misses, sunkShips, previewCells, showShips],
   )
+
+  const handleTouch = useCallback((e: React.TouchEvent, type: 'start' | 'move' | 'end') => {
+    const touch = e.changedTouches[0]
+    if (!touch) return
+    const el = document.elementFromPoint(touch.clientX, touch.clientY) as HTMLElement | null
+    const cell = el?.closest?.('.cell') as HTMLElement | null
+    if (!cell || !cell.dataset.r || !cell.dataset.c) {
+      if (type === 'end' && placementMode && onCellHover) onCellHover(-1, -1)
+      return
+    }
+    const r = +cell.dataset.r
+    const c = +cell.dataset.c
+
+    if (type === 'start') {
+      touchCellRef.current = { r, c }
+      if (placementMode && onCellHover) onCellHover(r, c)
+      e.preventDefault()
+    } else if (type === 'move') {
+      if (touchCellRef.current && (touchCellRef.current.r !== r || touchCellRef.current.c !== c)) {
+        touchCellRef.current = { r, c }
+        if (placementMode && onCellHover) onCellHover(r, c)
+      }
+      e.preventDefault()
+    } else if (type === 'end') {
+      if (interactive && onCellClick) {
+        onCellClick(r, c)
+      }
+      e.preventDefault()
+    }
+  }, [interactive, placementMode, onCellClick, onCellHover])
 
   useEffect(() => {
     if (wrapRef.current && gridRef.current) {
-      if (ships && showShips) {
-        renderShipOverlay(gridRef.current, wrapRef.current, ships, hits, false)
-      }
-      if (revealedShips) {
-        renderShipOverlay(gridRef.current, wrapRef.current, revealedShips, hits, true)
-      }
+      if (ships && showShips) renderShipOverlay(gridRef.current, wrapRef.current, ships, hits, false)
+      if (revealedShips) renderShipOverlay(gridRef.current, wrapRef.current, revealedShips, hits, true)
     }
   })
 
   return (
-    <div className="grid-wrap relative bg-navy-2 rounded-[10px] p-[2px] shadow-[0_4px_16px_rgba(0,0,0,.3)] border border-white/[0.03]" ref={wrapRef}>
+    <div
+      ref={wrapRef}
+      className="grid-wrap relative bg-navy-2 rounded-[10px] p-[2px] shadow-[0_4px_16px_rgba(0,0,0,.3)] border border-white/[0.03]"
+      style={{ touchAction: 'none' }}
+    >
       <div
         ref={gridRef}
         className="grid"
@@ -161,11 +162,10 @@ export default function Grid({
 
             const row = r - 1
             const col = c - 1
-            const key = `${row},${col}`
 
             return (
               <div
-                key={key}
+                key={row + ',' + col}
                 className={getCellClass(row, col)}
                 data-r={row}
                 data-c={col}
@@ -188,6 +188,15 @@ export default function Grid({
           }),
         )}
       </div>
+      {/* Touch overlay - captures all touch events on the grid */}
+      <div
+        style={{
+          position: 'absolute', inset: 0, zIndex: 3, touchAction: 'none',
+        }}
+        onTouchStart={(e) => handleTouch(e, 'start')}
+        onTouchMove={(e) => handleTouch(e, 'move')}
+        onTouchEnd={(e) => handleTouch(e, 'end')}
+      />
     </div>
   )
 }
