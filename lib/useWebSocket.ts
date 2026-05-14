@@ -9,6 +9,7 @@ const listeners = new Set<Listener>()
 let ws: WebSocket | null = null
 let wsConnected = false
 let wsRetries = 0
+let pingInterval: ReturnType<typeof setInterval> | null = null
 
 function connect() {
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return
@@ -20,11 +21,17 @@ function connect() {
   ws.onopen = () => {
     wsConnected = true
     wsRetries = 0
+
+    if (pingInterval) clearInterval(pingInterval)
+    pingInterval = setInterval(() => {
+      if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'ping' }))
+    }, 15000)
   }
 
   ws.onclose = () => {
     wsConnected = false
     ws = null
+    if (pingInterval) { clearInterval(pingInterval); pingInterval = null }
     wsRetries++
     const delay = Math.min(1000 * Math.pow(2, wsRetries), 10000)
     setTimeout(connect, delay)
@@ -35,6 +42,7 @@ function connect() {
   ws.onmessage = (ev) => {
     try {
       const msg = JSON.parse(ev.data) as ServerMessage
+      if (msg.type === 'pong') return
       listeners.forEach((fn) => fn(msg))
     } catch { /* ignore */ }
   }
@@ -58,9 +66,11 @@ export function useWebSocket() {
     connect()
     const interval = setInterval(() => {
       setConnected(wsConnected)
-    }, 300)
+    }, 200)
     return () => clearInterval(interval)
   }, [])
 
-  return { send: useCallback((data: unknown) => send(data), []), connected }
+  const sendMsg = useCallback((data: unknown) => send(data), [])
+
+  return { send: sendMsg, connected }
 }
